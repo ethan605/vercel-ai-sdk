@@ -72,6 +72,7 @@ export async function convertToOpenAIResponsesInput({
   hasShellTool = false,
   hasApplyPatchTool = false,
   customProviderToolNames,
+  keepReasoningItemsWithId = false,
 }: {
   prompt: LanguageModelV3Prompt;
   toolNameMapping: ToolNameMapping;
@@ -86,6 +87,7 @@ export async function convertToOpenAIResponsesInput({
   hasShellTool?: boolean;
   hasApplyPatchTool?: boolean;
   customProviderToolNames?: Set<string>;
+  keepReasoningItemsWithId?: boolean;
 }): Promise<{
   input: OpenAIResponsesInput;
   warnings: Array<SharedV3Warning>;
@@ -565,11 +567,19 @@ export async function convertToOpenAIResponsesInput({
             }
 
             case 'reasoning': {
-              const providerOptions = await parseProviderOptions({
+              let providerOptions = await parseProviderOptions({
                 provider: providerOptionsName,
                 providerOptions: part.providerOptions,
                 schema: openaiResponsesReasoningProviderOptionsSchema,
               });
+
+              if (providerOptions == null && providerOptionsName !== 'openai') {
+                providerOptions = await parseProviderOptions({
+                  provider: 'openai',
+                  providerOptions: part.providerOptions,
+                  schema: openaiResponsesReasoningProviderOptionsSchema,
+                });
+              }
 
               const reasoningId = providerOptions?.itemId;
 
@@ -1002,7 +1012,8 @@ export async function convertToOpenAIResponsesInput({
       item =>
         'type' in item &&
         item.type === 'reasoning' &&
-        item.encrypted_content == null,
+        item.encrypted_content == null &&
+        (!keepReasoningItemsWithId || item.id == null),
     )
   ) {
     warnings.push({
@@ -1014,7 +1025,8 @@ export async function convertToOpenAIResponsesInput({
       item =>
         !('type' in item) ||
         item.type !== 'reasoning' ||
-        item.encrypted_content != null,
+        item.encrypted_content != null ||
+        (keepReasoningItemsWithId && item.id != null),
     );
   }
 

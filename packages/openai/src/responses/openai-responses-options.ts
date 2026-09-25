@@ -359,6 +359,7 @@ export const openaiLanguageModelResponsesOptionsSchema = lazySchema(() =>
        * and defaults `systemMessageMode` to `developer` unless overridden.
        */
       forceReasoning: z.boolean().optional(),
+      fixReasoning: z.boolean().optional(),
 
       /**
        * Restrict the callable tools to a subset while keeping the full tools

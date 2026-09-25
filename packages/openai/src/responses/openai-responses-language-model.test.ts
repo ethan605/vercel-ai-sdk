@@ -1105,6 +1105,72 @@ describe('OpenAIResponsesLanguageModel', () => {
         expect(warnings).toStrictEqual([]);
       });
 
+      it('should preserve catalog reasoning mode when fixReasoning is false', async () => {
+        await createModel('o3-mini').doGenerate({
+          prompt: TEST_PROMPT,
+          providerOptions: {
+            openai: {
+              fixReasoning: false,
+              reasoningEffort: 'low',
+              reasoningSummary: 'auto',
+            },
+          },
+        });
+
+        expect(await server.calls[0].requestBodyJson).toMatchObject({
+          reasoning: {
+            effort: 'low',
+            summary: 'auto',
+          },
+        });
+      });
+
+      it('should enable stateless reasoning with fixReasoning for a custom provider', async () => {
+        prepareJsonFixtureResponse('openai-reasoning-encrypted-content.1');
+        const model = new OpenAIResponsesLanguageModel(
+          'stealth-reasoning-model',
+          {
+            provider: 'bifrost',
+            url: ({ path }) => `https://api.openai.com/v1${path}`,
+            headers: () => ({ Authorization: 'Bearer APIKEY' }),
+            generateId: mockId(),
+          },
+        );
+
+        const { warnings } = await model.doGenerate({
+          prompt: TEST_PROMPT,
+          providerOptions: {
+            bifrost: {
+              fixReasoning: true,
+              reasoningEffort: 'high',
+              reasoningSummary: 'auto',
+            },
+          },
+        });
+
+        expect(await server.calls[0].requestBodyJson).toMatchObject({
+          model: 'stealth-reasoning-model',
+          store: false,
+          reasoning: {
+            effort: 'high',
+            summary: 'auto',
+          },
+        });
+        expect(warnings).toStrictEqual([]);
+      });
+
+      it('should omit store when fixReasoning is not enabled', async () => {
+        prepareJsonFixtureResponse('openai-reasoning-encrypted-content.1');
+
+        await createModel('stealth-reasoning-model').doGenerate({
+          prompt: TEST_PROMPT,
+        });
+
+        expect(await server.calls[0].requestBodyJson).not.toHaveProperty(
+          'store',
+        );
+      });
+
       it('should send xhigh reasoningEffort for codex-max model', async () => {
         const { warnings } = await createModel('gpt-5.1-codex-max').doGenerate({
           prompt: TEST_PROMPT,

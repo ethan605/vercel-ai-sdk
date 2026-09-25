@@ -160,7 +160,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
 
     const providerOptionsName = this.config.provider.includes('azure')
       ? 'azure'
-      : 'openai';
+      : this.config.provider.split('.')[0].trim();
     let openaiOptions = await parseProviderOptions({
       provider: providerOptionsName,
       providerOptions,
@@ -175,8 +175,10 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
       });
     }
 
+    const fixReasoning = openaiOptions?.fixReasoning ?? false;
     const isReasoningModel =
-      openaiOptions?.forceReasoning ?? modelCapabilities.isReasoningModel;
+      openaiOptions?.forceReasoning ??
+      (fixReasoning || modelCapabilities.isReasoningModel);
 
     if (openaiOptions?.conversation && openaiOptions?.previousResponseId) {
       warnings.push({
@@ -232,7 +234,8 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
         fileIdPrefixes: this.config.fileIdPrefixes,
         passThroughUnsupportedFiles:
           openaiOptions?.passThroughUnsupportedFiles ?? false,
-        store: openaiOptions?.store ?? true,
+        store: openaiOptions?.store ?? (fixReasoning ? false : true),
+        keepReasoningItemsWithId: fixReasoning,
         hasConversation: openaiOptions?.conversation != null,
         hasPreviousResponseId: openaiOptions?.previousResponseId != null,
         hasLocalShellTool: hasOpenAITool('openai.local_shell'),
@@ -295,7 +298,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
       addInclude('code_interpreter_call.outputs');
     }
 
-    const store = openaiOptions?.store;
+    const store = openaiOptions?.store ?? (fixReasoning ? false : undefined);
 
     // store defaults to true in the OpenAI responses API, so check for false exactly:
     if (store === false && isReasoningModel) {

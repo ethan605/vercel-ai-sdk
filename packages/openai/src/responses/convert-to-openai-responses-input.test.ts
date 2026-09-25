@@ -1690,6 +1690,124 @@ describe('convertToOpenAIResponsesInput', () => {
           `);
         });
 
+        it('should keep id-bearing reasoning parts without encrypted content when enabled', async () => {
+          const result = await convertToOpenAIResponsesInput({
+            toolNameMapping: testToolNameMapping,
+            prompt: [
+              {
+                role: 'assistant',
+                content: [
+                  {
+                    type: 'reasoning',
+                    text: 'First reasoning step',
+                    providerOptions: {
+                      openai: { itemId: 'reasoning_001' },
+                    },
+                  },
+                  {
+                    type: 'reasoning',
+                    text: 'Second reasoning step',
+                    providerOptions: {
+                      openai: { itemId: 'reasoning_001' },
+                    },
+                  },
+                ],
+              },
+            ],
+            systemMessageMode: 'system',
+            providerOptionsName: 'openai',
+            store: false,
+            keepReasoningItemsWithId: true,
+          });
+
+          expect(result.input).toEqual([
+            {
+              type: 'reasoning',
+              id: 'reasoning_001',
+              summary: [
+                { type: 'summary_text', text: 'First reasoning step' },
+                { type: 'summary_text', text: 'Second reasoning step' },
+              ],
+            },
+          ]);
+          expect(result.warnings).toHaveLength(0);
+        });
+
+        it('should fall back to OpenAI reasoning options for custom providers', async () => {
+          const result = await convertToOpenAIResponsesInput({
+            toolNameMapping: testToolNameMapping,
+            prompt: [
+              {
+                role: 'assistant',
+                content: [
+                  {
+                    type: 'reasoning',
+                    text: 'OpenAI-keyed reasoning',
+                    providerOptions: {
+                      openai: { itemId: 'openai_reasoning' },
+                    },
+                  },
+                  {
+                    type: 'reasoning',
+                    text: 'Custom-keyed reasoning',
+                    providerOptions: {
+                      bifrost: { itemId: 'bifrost_reasoning' },
+                    },
+                  },
+                ],
+              },
+            ],
+            systemMessageMode: 'system',
+            providerOptionsName: 'bifrost',
+            store: false,
+            keepReasoningItemsWithId: true,
+          });
+
+          expect(result.input).toEqual([
+            {
+              type: 'reasoning',
+              id: 'openai_reasoning',
+              summary: [
+                { type: 'summary_text', text: 'OpenAI-keyed reasoning' },
+              ],
+            },
+            {
+              type: 'reasoning',
+              id: 'bifrost_reasoning',
+              summary: [
+                { type: 'summary_text', text: 'Custom-keyed reasoning' },
+              ],
+            },
+          ]);
+          expect(result.warnings).toHaveLength(0);
+        });
+
+        it('should still drop and warn for id-less reasoning parts when enabled', async () => {
+          const result = await convertToOpenAIResponsesInput({
+            toolNameMapping: testToolNameMapping,
+            prompt: [
+              {
+                role: 'assistant',
+                content: [
+                  {
+                    type: 'reasoning',
+                    text: 'Orphan reasoning step',
+                    providerOptions: { openai: {} },
+                  },
+                ],
+              },
+            ],
+            systemMessageMode: 'system',
+            providerOptionsName: 'openai',
+            store: false,
+            keepReasoningItemsWithId: true,
+          });
+
+          expect(result.input).toEqual([]);
+          expect(result.warnings).toHaveLength(1);
+          expect(result.warnings[0].type).toBe('other');
+        });
+
         it('should create separate messages for different reasoning IDs', async () => {
           const result = await convertToOpenAIResponsesInput({
             toolNameMapping: testToolNameMapping,
